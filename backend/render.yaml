@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: seo-entity-analyzer-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: SERPER_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_B64
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
