@@ -41,3 +41,38 @@ async def test_search_handles_api_error():
     )
     with pytest.raises(Exception, match="Serper API error"):
         await search_google("test", api_key="bad_key")
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_search_handles_malformed_json():
+    """Bug fix: malformed JSON response should raise descriptive exception"""
+    respx.post("https://google.serper.dev/search").mock(
+        return_value=httpx.Response(200, text="not valid json", headers={"content-type": "text/html"})
+    )
+    with pytest.raises(Exception, match="invalid JSON"):
+        await search_google("test", api_key="test_key")
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_search_empty_results():
+    """Empty organic results should return empty list"""
+    respx.post("https://google.serper.dev/search").mock(
+        return_value=httpx.Response(200, json={"organic": []})
+    )
+    results = await search_google("obscure query", api_key="test_key")
+    assert results == []
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_search_missing_fields_handled():
+    """Items with missing link/title/snippet should not crash"""
+    mock_data = {"organic": [{"link": "https://example.com"}]}  # no title or snippet
+    respx.post("https://google.serper.dev/search").mock(
+        return_value=httpx.Response(200, json=mock_data)
+    )
+    results = await search_google("test", api_key="test_key")
+    assert len(results) == 1
+    assert results[0]["url"] == "https://example.com"
+    assert results[0]["title"] == ""
+    assert results[0]["snippet"] == ""

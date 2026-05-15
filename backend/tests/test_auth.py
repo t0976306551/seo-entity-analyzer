@@ -23,3 +23,22 @@ def test_invalid_token_raises_401():
         with pytest.raises(HTTPException) as exc:
             asyncio.run(get_current_user("Bearer invalid.token.here"))
     assert exc.value.status_code == 401
+
+
+def test_bearer_with_no_token_raises_401():
+    """Bug fix: 'Bearer' with no token part should return 401, not IndexError"""
+    import asyncio
+    from app.auth import get_current_user
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(get_current_user("Bearer"))
+    assert exc.value.status_code == 401
+
+def test_non_bearer_scheme_raises_401():
+    """Basic scheme other than Bearer should return 401"""
+    import asyncio
+    from app.auth import get_current_user
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(get_current_user("Basic dXNlcjpwYXNz"))
+    assert exc.value.status_code == 401

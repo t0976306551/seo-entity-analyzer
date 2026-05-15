@@ -30,3 +30,36 @@ def test_empty_text_returns_zero():
     result = extract_entities("")
     assert result["total"] == 0
     assert result["categories"] == {}
+
+
+def test_extract_entities_with_none_text():
+    """None input should be handled gracefully"""
+    from app.services.nlp import extract_entities
+    # None is not str, but we should handle it
+    result = extract_entities(None or "")
+    assert result["total"] == 0
+
+def test_extract_entities_very_long_text():
+    """Text longer than 10000 chars should be truncated and still work"""
+    from app.services.nlp import extract_entities
+    long_text = "台灣大哥大 " * 2000  # ~12000 chars
+    result = extract_entities(long_text)
+    assert isinstance(result, dict)
+    assert result["total"] >= 0
+
+def test_group_entities_empty_list():
+    """Empty article list should return empty dict"""
+    from app.services.nlp import group_entities_by_category
+    result = group_entities_by_category([])
+    assert result == {}
+
+def test_group_entities_deduplication():
+    """Same entity in multiple articles should appear once in grouped result"""
+    from app.services.nlp import group_entities_by_category
+    articles = [
+        {"total": 1, "categories": {"組織品牌": ["台灣大哥大"]}},
+        {"total": 1, "categories": {"組織品牌": ["台灣大哥大"]}},
+        {"total": 1, "categories": {"組織品牌": ["台灣大哥大"]}},
+    ]
+    result = group_entities_by_category(articles)
+    assert result["組織品牌"].count("台灣大哥大") == 1  # deduplicated

@@ -3,6 +3,8 @@ import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 
+from app.auth import get_current_user
+
 # Mock get_supabase at the module level before importing app,
 # so the singleton in database.py never tries a real connection.
 mock_supabase = MagicMock()
@@ -89,4 +91,36 @@ def test_analyze_empty_keyword_returns_400():
 def test_login_missing_body():
     """POST /auth/login with missing fields should return 422 (validation error)."""
     response = client.post("/auth/login", json={})
+    assert response.status_code == 422
+
+
+def test_analyze_keyword_too_short():
+    """Keyword shorter than 2 chars should return 400"""
+    app.dependency_overrides[get_current_user] = lambda: {"user_id": "test-uuid", "email": "test@test.com"}
+    try:
+        response = client.post("/analyze", json={"keyword": "a"}, headers={"Authorization": "Bearer fake"})
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 400
+
+
+def test_analyze_keyword_too_long():
+    """Keyword longer than 200 chars should return 400"""
+    app.dependency_overrides[get_current_user] = lambda: {"user_id": "test-uuid", "email": "test@test.com"}
+    try:
+        response = client.post("/analyze", json={"keyword": "a" * 201}, headers={"Authorization": "Bearer fake"})
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 400
+
+
+def test_register_missing_email():
+    """Register with missing email field should return 422"""
+    response = client.post("/auth/register", json={"password": "password123"})
+    assert response.status_code == 422
+
+
+def test_register_missing_password():
+    """Register with missing password field should return 422"""
+    response = client.post("/auth/register", json={"email": "test@test.com"})
     assert response.status_code == 422

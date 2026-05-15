@@ -43,3 +43,40 @@ async def test_fetch_articles_concurrent_returns_list():
     results = await fetch_articles_concurrent(urls)
     assert len(results) == 2
     assert all(isinstance(r, str) for r in results)
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_fetch_article_404_returns_empty():
+    """404 response should return empty string"""
+    respx.get("https://notfound.example.com/").mock(
+        return_value=httpx.Response(404, text="Not Found")
+    )
+    result = await fetch_article("https://notfound.example.com/")
+    assert result == ""
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_fetch_article_non_html_returns_empty():
+    """PDF or binary content-type should return empty string"""
+    respx.get("https://example.com/doc.pdf").mock(
+        return_value=httpx.Response(200, content=b"%PDF-1.4", headers={"content-type": "application/pdf"})
+    )
+    result = await fetch_article("https://example.com/doc.pdf")
+    assert result == ""
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_fetch_articles_concurrent_partial_failure():
+    """If some URLs fail, should still return results for successful ones"""
+    respx.get("https://good.example.com/").mock(
+        return_value=httpx.Response(200, text="<html><body>好文章</body></html>",
+                                    headers={"content-type": "text/html"})
+    )
+    respx.get("https://bad.example.com/").mock(
+        side_effect=httpx.TimeoutException("timeout")
+    )
+    results = await fetch_articles_concurrent(["https://good.example.com/", "https://bad.example.com/"])
+    assert len(results) == 2
+    assert "好文章" in results[0]
+    assert results[1] == ""
