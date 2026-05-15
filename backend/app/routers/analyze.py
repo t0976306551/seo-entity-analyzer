@@ -22,10 +22,14 @@ async def start_analysis(
 
     if not keyword:
         raise HTTPException(status_code=400, detail="Keyword cannot be empty")
+    if len(keyword) > 200:
+        raise HTTPException(status_code=400, detail="Keyword too long (max 200 characters)")
+    if len(keyword) < 2:
+        raise HTTPException(status_code=400, detail="Keyword too short (min 2 characters)")
 
     db = get_supabase()
 
-    sheet_record = db.table("user_sheets").select("sheet_id, status").eq("user_id", user_id).single().execute()
+    sheet_record = db.table("user_sheets").select("sheet_id, status").eq("user_id", user_id).maybe_single().execute()
     if not sheet_record.data or sheet_record.data.get("status") != "active":
         raise HTTPException(status_code=400, detail="User sheet not ready. Please re-register.")
 
@@ -49,7 +53,7 @@ async def get_job_status(
     current_user: dict = Depends(get_current_user),
 ):
     db = get_supabase()
-    result = db.table("query_history").select("*").eq("job_id", job_id).eq("user_id", current_user["user_id"]).single().execute()
+    result = db.table("query_history").select("*").eq("job_id", job_id).eq("user_id", current_user["user_id"]).maybe_single().execute()
 
     if not result.data:
         raise HTTPException(status_code=404, detail="Job not found")

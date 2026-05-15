@@ -44,4 +44,3 @@ async def run_analysis_job(job_id: str, user_id: str, keyword: str, sheet_id: st
 
     except Exception as e:
         update_status("failed", str(e)[:500])
-        raise

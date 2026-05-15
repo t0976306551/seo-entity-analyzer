@@ -6,7 +6,10 @@ async def get_current_user(authorization: str | None = Header(default=None)) -> 
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
 
-    token = authorization.split(" ")[1]
+    parts = authorization.split(" ", 1)
+    if len(parts) != 2 or not parts[1]:
+        raise HTTPException(status_code=401, detail="Missing token")
+    token = parts[1]
 
     try:
         db = get_supabase()
