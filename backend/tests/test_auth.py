@@ -1,0 +1,18 @@
+# backend/tests/test_auth.py
+import pytest
+from fastapi import HTTPException
+from unittest.mock import patch, MagicMock
+
+def test_missing_token_raises_401():
+    import asyncio
+    from app.auth import get_current_user
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(get_current_user(None))
+    assert exc.value.status_code == 401
+
+def test_invalid_token_raises_401():
+    import asyncio
+    from app.auth import get_current_user
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(get_current_user("Bearer invalid.token.here"))
+    assert exc.value.status_code == 401
