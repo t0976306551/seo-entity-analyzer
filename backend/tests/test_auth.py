@@ -12,7 +12,14 @@ def test_missing_token_raises_401():
 
 def test_invalid_token_raises_401():
     import asyncio
+    from unittest.mock import patch, MagicMock
     from app.auth import get_current_user
-    with pytest.raises(HTTPException) as exc:
-        asyncio.run(get_current_user("Bearer invalid.token.here"))
+    from fastapi import HTTPException
+
+    mock_db = MagicMock()
+    mock_db.auth.get_user.side_effect = Exception("Invalid JWT")
+
+    with patch("app.auth.get_supabase", return_value=mock_db):
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(get_current_user("Bearer invalid.token.here"))
     assert exc.value.status_code == 401
