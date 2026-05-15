@@ -18,7 +18,10 @@ async def search_google(keyword: str, api_key: str | None = None) -> list[dict]:
     if response.status_code != 200:
         raise Exception(f"Serper API error: {response.status_code} {response.text}")
 
-    data = response.json()
+    try:
+        data = response.json()
+    except Exception:
+        raise Exception(f"Serper API returned invalid JSON: {response.text[:200]}")
     results = []
     for item in data.get("organic", [])[:10]:
         results.append({
