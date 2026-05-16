@@ -10,5 +10,6 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:3000"
     google_client_id: str = ""
     google_client_secret: str = ""
+    backend_url: str = "http://localhost:8000"
 
 settings = Settings()

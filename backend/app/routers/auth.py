@@ -16,7 +16,7 @@ GOOGLE_SCOPES = [
     "https://www.googleapis.com/auth/drive.file",
 ]
 
-REDIRECT_URI = "http://localhost:8000/auth/google/callback"
+REDIRECT_URI = f"{settings.backend_url}/auth/google/callback"
 
 _pending_oauth: dict[str, str] = {}  # user_id -> code_verifier
 
