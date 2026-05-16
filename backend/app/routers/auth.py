@@ -61,6 +61,7 @@ async def register(request: AuthRequest, background_tasks: BackgroundTasks):
     try:
         db.table("user_sheets").insert({
             "user_id": user_id,
+            "email": request.email,
             "sheet_id": "",
             "sheet_url": "",
             "status": "pending",
@@ -130,10 +131,7 @@ async def google_oauth_callback(code: str, state: str):
 
         refresh_token = creds.refresh_token
         user_record = db.table("user_sheets").select("*").eq("user_id", user_id).maybe_single().execute()
-        user_email = ""
-        if user_record.data:
-            auth_user = db.auth.admin.get_user_by_id(user_id)
-            user_email = auth_user.user.email if auth_user.user else ""
+        user_email = user_record.data.get("email", "") if user_record.data else ""
 
         sheet_id, sheet_url = await asyncio.to_thread(
             create_user_sheet_oauth, refresh_token, user_email
