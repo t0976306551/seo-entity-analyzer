@@ -15,21 +15,21 @@ async def fetch_article(url: str) -> str:
         async with httpx.AsyncClient(timeout=10.0, follow_redirects=True, headers=HEADERS) as client:
             response = await client.get(url)
 
-        if response.status_code != 200:
-            return ""
+            if response.status_code != 200:
+                return ""
 
-        content_type = response.headers.get("content-type", "")
-        if "text/html" not in content_type and "text/plain" not in content_type:
-            return ""
+            content_type = response.headers.get("content-type", "")
+            if "text/html" not in content_type and "text/plain" not in content_type:
+                return ""
 
-        soup = BeautifulSoup(response.text, "html.parser")
+            soup = BeautifulSoup(response.text, "html.parser")
 
-        for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
-            tag.decompose()
+            for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
+                tag.decompose()
 
-        text = soup.get_text(separator=" ", strip=True)
-        text = re.sub(r'\s+', ' ', text).strip()
-        return text[:8000]
+            text = soup.get_text(separator=" ", strip=True)
+            text = re.sub(r'\s+', ' ', text).strip()
+            return text[:8000]
 
     except (httpx.TimeoutException, httpx.RequestError):
         return ""

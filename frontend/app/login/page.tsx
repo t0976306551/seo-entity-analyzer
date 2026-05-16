@@ -17,6 +17,7 @@ export default function LoginPage() {
       localStorage.setItem('access_token', data.access_token)
       localStorage.setItem('user_email', data.email)
       localStorage.setItem('sheet_url', data.sheet_url || '')
+      localStorage.setItem('sheet_status', data.sheet_status || 'pending')
       document.cookie = `sb-access-token=${data.access_token}; path=/; max-age=604800; SameSite=Lax`
       router.push('/dashboard')
     } catch (err: unknown) {

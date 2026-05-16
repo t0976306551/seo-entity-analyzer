@@ -29,11 +29,13 @@ async def start_analysis(
 
     db = get_supabase()
 
-    sheet_record = db.table("user_sheets").select("sheet_id, status").eq("user_id", user_id).maybe_single().execute()
+    sheet_record = db.table("user_sheets").select("sheet_id, sheet_url, status, google_refresh_token").eq("user_id", user_id).maybe_single().execute()
     if not sheet_record.data or sheet_record.data.get("status") != "active":
-        raise HTTPException(status_code=400, detail="User sheet not ready. Please re-register.")
+        raise HTTPException(status_code=400, detail="User sheet not ready. Please connect your Google account.")
 
     sheet_id = sheet_record.data["sheet_id"]
+    sheet_url = sheet_record.data.get("sheet_url", "")
+    refresh_token = sheet_record.data.get("google_refresh_token")
     job_id = str(uuid.uuid4())
 
     db.table("query_history").insert({
@@ -43,7 +45,7 @@ async def start_analysis(
         "job_id": job_id,
     }).execute()
 
-    background_tasks.add_task(run_analysis_job, job_id, user_id, keyword, sheet_id)
+    background_tasks.add_task(run_analysis_job, job_id, user_id, keyword, sheet_id, sheet_url, refresh_token)
 
     return {"job_id": job_id, "status": "pending"}
 

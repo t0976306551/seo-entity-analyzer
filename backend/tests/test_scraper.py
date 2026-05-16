@@ -80,3 +80,21 @@ async def test_fetch_articles_concurrent_partial_failure():
     assert len(results) == 2
     assert "好文章" in results[0]
     assert results[1] == ""
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_fetch_articles_concurrent_empty_urls():
+    """空 URL 列表應回傳空列表"""
+    from app.services.scraper import fetch_articles_concurrent
+    results = await fetch_articles_concurrent([])
+    assert results == []
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_fetch_article_empty_url_returns_empty():
+    """空字串 URL 應回傳空字串而非拋出例外"""
+    from app.services.scraper import fetch_article
+    result = await fetch_article("")
+    assert result == ""

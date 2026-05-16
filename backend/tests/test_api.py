@@ -8,7 +8,7 @@ from app.auth import get_current_user
 # Mock get_supabase at the module level before importing app,
 # so the singleton in database.py never tries a real connection.
 mock_supabase = MagicMock()
-mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value.data = {
+mock_supabase.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = {
     "sheet_id": "test_sheet_id",
     "status": "active",
 }
@@ -67,7 +67,7 @@ def test_analyze_empty_keyword_returns_400():
 
     # Build a local supabase mock that reports an active sheet
     local_mock_db = MagicMock()
-    local_mock_db.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value.data = {
+    local_mock_db.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = {
         "sheet_id": "test_sheet_id",
         "status": "active",
     }
@@ -100,7 +100,7 @@ def test_analyze_keyword_too_short():
     try:
         response = client.post("/analyze", json={"keyword": "a"}, headers={"Authorization": "Bearer fake"})
     finally:
-        app.dependency_overrides.clear()
+        app.dependency_overrides.pop(get_current_user, None)
     assert response.status_code == 400
 
 
@@ -110,7 +110,7 @@ def test_analyze_keyword_too_long():
     try:
         response = client.post("/analyze", json={"keyword": "a" * 201}, headers={"Authorization": "Bearer fake"})
     finally:
-        app.dependency_overrides.clear()
+        app.dependency_overrides.pop(get_current_user, None)
     assert response.status_code == 400
 
 
@@ -124,3 +124,107 @@ def test_register_missing_password():
     """Register with missing password field should return 422"""
     response = client.post("/auth/register", json={"email": "test@test.com"})
     assert response.status_code == 422
+
+
+def test_analyze_keyword_boundary_min():
+    """剛好 2 個字元的 keyword 應回傳 202（不被拒絕）"""
+    from app.auth import get_current_user
+    # 設定有效的 sheet mock
+    local_mock_db = MagicMock()
+    local_mock_db.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = {
+        "sheet_id": "test_sheet_id",
+        "sheet_url": "https://docs.google.com/test",
+        "status": "active",
+    }
+    local_mock_db.table.return_value.insert.return_value.execute.return_value = MagicMock()
+    app.dependency_overrides[get_current_user] = lambda: {"user_id": "test-uuid", "email": "test@test.com"}
+    try:
+        with patch("app.routers.analyze.get_supabase", return_value=local_mock_db):
+            with patch("app.services.job_runner.run_analysis_job"):
+                response = client.post(
+                    "/analyze",
+                    json={"keyword": "ab"},
+                    headers={"Authorization": "Bearer fake"},
+                )
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+    assert response.status_code == 202
+
+
+def test_analyze_keyword_boundary_max():
+    """剛好 200 個字元的 keyword 應回傳 202（不被拒絕）"""
+    from app.auth import get_current_user
+    local_mock_db = MagicMock()
+    local_mock_db.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = {
+        "sheet_id": "test_sheet_id",
+        "sheet_url": "https://docs.google.com/test",
+        "status": "active",
+    }
+    local_mock_db.table.return_value.insert.return_value.execute.return_value = MagicMock()
+    app.dependency_overrides[get_current_user] = lambda: {"user_id": "test-uuid", "email": "test@test.com"}
+    try:
+        with patch("app.routers.analyze.get_supabase", return_value=local_mock_db):
+            with patch("app.services.job_runner.run_analysis_job"):
+                response = client.post(
+                    "/analyze",
+                    json={"keyword": "a" * 200},
+                    headers={"Authorization": "Bearer fake"},
+                )
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+    assert response.status_code == 202
+
+
+def test_analyze_whitespace_keyword_returns_400():
+    """純空白的 keyword 在 strip 後應被視為 empty 而回傳 400"""
+    from app.auth import get_current_user
+    app.dependency_overrides[get_current_user] = lambda: {"user_id": "test-uuid", "email": "test@test.com"}
+    try:
+        response = client.post(
+            "/analyze",
+            json={"keyword": "   "},
+            headers={"Authorization": "Bearer fake"},
+        )
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+    assert response.status_code == 400
+
+
+def test_analyze_sheet_not_ready_returns_400():
+    """user_sheets status 不是 active 時應回傳 400"""
+    from app.auth import get_current_user
+    local_mock_db = MagicMock()
+    local_mock_db.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = {
+        "sheet_id": "",
+        "sheet_url": "",
+        "status": "pending",
+    }
+    app.dependency_overrides[get_current_user] = lambda: {"user_id": "test-uuid", "email": "test@test.com"}
+    try:
+        with patch("app.routers.analyze.get_supabase", return_value=local_mock_db):
+            response = client.post(
+                "/analyze",
+                json={"keyword": "4G吃到飽"},
+                headers={"Authorization": "Bearer fake"},
+            )
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+    assert response.status_code == 400
+    assert "not ready" in response.json()["detail"]
+
+
+def test_job_status_not_found_returns_404():
+    """不存在的 job_id 應回傳 404"""
+    from app.auth import get_current_user
+    local_mock_db = MagicMock()
+    local_mock_db.table.return_value.select.return_value.eq.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = None
+    app.dependency_overrides[get_current_user] = lambda: {"user_id": "test-uuid", "email": "test@test.com"}
+    try:
+        with patch("app.routers.analyze.get_supabase", return_value=local_mock_db):
+            response = client.get(
+                "/job/nonexistent-job-id",
+                headers={"Authorization": "Bearer fake"},
+            )
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+    assert response.status_code == 404

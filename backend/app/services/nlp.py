@@ -35,10 +35,11 @@ def extract_entities(text: str) -> dict:
         label = CATEGORY_MAP.get(ent.label_, "其他")
         categories[label].append(ent.text)
 
-    total = sum(len(v) for v in categories.values())
+    deduped = {k: list(set(v)) for k, v in categories.items()}
+    total = sum(len(v) for v in deduped.values())
     return {
         "total": total,
-        "categories": {k: list(set(v)) for k, v in categories.items()},
+        "categories": deduped,
     }
 
 def group_entities_by_category(articles_entities: list[dict]) -> dict[str, list[str]]:

@@ -32,12 +32,12 @@ def test_empty_text_returns_zero():
     assert result["categories"] == {}
 
 
-def test_extract_entities_with_none_text():
-    """None input should be handled gracefully"""
+def test_extract_entities_with_empty_string():
+    """空字串輸入應正常回傳 zero，不拋出例外"""
     from app.services.nlp import extract_entities
-    # None is not str, but we should handle it
-    result = extract_entities(None or "")
+    result = extract_entities("")
     assert result["total"] == 0
+    assert result["categories"] == {}
 
 def test_extract_entities_very_long_text():
     """Text longer than 10000 chars should be truncated and still work"""
@@ -63,3 +63,23 @@ def test_group_entities_deduplication():
     ]
     result = group_entities_by_category(articles)
     assert result["組織品牌"].count("台灣大哥大") == 1  # deduplicated
+
+
+def test_extract_entities_total_matches_categories():
+    """BUG-1 修復驗證：total 應等於去重後各 category 長度的總和"""
+    from app.services.nlp import extract_entities
+    # 這段文字故意讓「台灣大哥大」出現多次，以觸發去重前後不一致的問題
+    text = "台灣大哥大提供4G方案，台灣大哥大的月租費是599元，台灣大哥大很受歡迎。"
+    result = extract_entities(text)
+    deduped_total = sum(len(v) for v in result["categories"].values())
+    assert result["total"] == deduped_total, (
+        f"total ({result['total']}) should equal sum of deduped category lengths ({deduped_total})"
+    )
+
+
+def test_extract_entities_whitespace_only():
+    """純空白字串應回傳 zero"""
+    from app.services.nlp import extract_entities
+    result = extract_entities("   ")
+    assert result["total"] == 0
+    assert result["categories"] == {}

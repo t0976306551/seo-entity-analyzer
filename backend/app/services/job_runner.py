@@ -6,24 +6,26 @@ from app.services.scraper import fetch_articles_concurrent
 from app.services.nlp import extract_entities, group_entities_by_category
 from app.services.sheets import write_analysis_to_sheet
 
-async def run_analysis_job(job_id: str, user_id: str, keyword: str, sheet_id: str):
+async def run_analysis_job(job_id: str, user_id: str, keyword: str, sheet_id: str, sheet_url: str, refresh_token: str | None = None):
     db = get_supabase()
 
-    def update_status(status: str, error: str | None = None):
+    async def update_status(status: str, error: str | None = None):
         update_data = {"status": status}
         if error:
             update_data["error_msg"] = error
-        db.table("query_history").update(update_data).eq("job_id", job_id).execute()
+        await asyncio.to_thread(
+            lambda: db.table("query_history").update(update_data).eq("job_id", job_id).execute()
+        )
 
     try:
-        update_status("searching")
+        await update_status("searching")
         serp_results = await search_google(keyword)
 
-        update_status("crawling")
+        await update_status("crawling")
         urls = [r["url"] for r in serp_results]
         texts = await fetch_articles_concurrent(urls)
 
-        update_status("analyzing")
+        await update_status("analyzing")
         articles = []
         for result, text in zip(serp_results, texts):
             entities = extract_entities(text) if text else {"total": 0, "categories": {}}
@@ -31,16 +33,17 @@ async def run_analysis_job(job_id: str, user_id: str, keyword: str, sheet_id: st
 
         grouped = group_entities_by_category([a["entities"] for a in articles])
 
-        update_status("writing")
-        write_analysis_to_sheet(sheet_id, keyword, articles, grouped)
+        await update_status("writing")
+        # run_in_executor prevents blocking the event loop during gspread I/O
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, write_analysis_to_sheet, sheet_id, keyword, articles, grouped, refresh_token)
 
-        sheet_record = db.table("user_sheets").select("sheet_url").eq("user_id", user_id).single().execute()
-        sheet_url = sheet_record.data.get("sheet_url", "") if sheet_record.data else ""
-
-        db.table("query_history").update({
-            "status": "done",
-            "sheet_url": sheet_url,
-        }).eq("job_id", job_id).execute()
+        await asyncio.to_thread(
+            lambda: db.table("query_history").update({
+                "status": "done",
+                "sheet_url": sheet_url,
+            }).eq("job_id", job_id).execute()
+        )
 
     except Exception as e:
-        update_status("failed", str(e)[:500])
+        await update_status("failed", str(e)[:500])
